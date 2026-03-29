@@ -41,16 +41,16 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==========================================
-# CONSTANTS & CONFIGURATION
+# CONSTANTS & CONFIGURATION (Professional Muted Colors)
 # ==========================================
 METHOD_COLORS = {
-    'SHAP': '#94a3b8',         # Slate (Baseline)
-    'Banzhaf': '#f59e0b',      # Amber
-    'Myerson': '#22c55e',      # Green
-    'Owen-Domain': '#ef4444',  # Red
-    'Owen-Data': '#8b5cf6',    # Purple
-    'Owen-Model': '#d946ef',   # Fuchsia
-    'R-Myerson': '#0ea5e9'     # Cyan (Proposed)
+    'SHAP': '#64748b',         # Muted Slate
+    'Banzhaf': '#d97706',      # Muted Amber
+    'Myerson': '#16a34a',      # Muted Green
+    'Owen-Domain': '#dc2626',  # Muted Red
+    'Owen-Data': '#7c3aed',    # Muted Purple
+    'Owen-Model': '#c026d3',   # Muted Fuchsia
+    'R-Myerson': '#0284c7'     # Muted Cyan (Proposed)
 }
 
 DATASET_REGISTRY = {
@@ -262,11 +262,12 @@ else:
         if len(owen_clean) >= 3:
             qc1, qc2 = st.columns([1.5, 1])
             with qc1:
+                # Removed trendline and added symbol mapping to Model as requested
                 fig_q = px.scatter(owen_clean, x='Q', y='I', color='Method',
-                                   hover_data=['Model', 'Sampler'], color_discrete_map=METHOD_COLORS,
-                                   trendline="ols", # Needs statsmodels which is in requirements
+                                   symbol='Model', hover_data=['Sampler'], 
+                                   color_discrete_map=METHOD_COLORS,
                                    title=f"Group Quality (Q) vs Interpretability (I) — n={len(owen_clean)} points")
-                fig_q.update_traces(marker=dict(size=14, line=dict(width=1, color='DarkSlateGrey')))
+                fig_q.update_traces(marker=dict(size=14, line=dict(width=1, color='white')))
                 fig_q.update_layout(template="plotly_white", height=500)
                 st.plotly_chart(fig_q, use_container_width=True)
             
