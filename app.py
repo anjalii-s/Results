@@ -6,30 +6,42 @@ import plotly.graph_objects as go
 import os
 
 # ==========================================
-# PAGE CONFIGURATION & CSS
+# PAGE CONFIGURATION & PROFESSIONAL CSS
 # ==========================================
 st.set_page_config(
     page_title="Credit Risk XAI Framework",
-    page_icon="📊",
+    page_icon="🏦",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 st.markdown("""
     <style>
-    .main { background-color: #fcfcfc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    h1, h2, h3, h4 { color: #1e293b; font-weight: 600; }
-    .leaderboard-card { background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #e2e8f0; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.2s;}
-    .leaderboard-card:hover { transform: translateY(-5px); border-color: #cbd5e1; }
-    .rank-icon { font-size: 2.5rem; margin-bottom: 5px; }
-    .insight-box { background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 15px; border-radius: 4px; margin: 15px 0; color: #334155; font-size: 1.05rem;}
-    .stat-sig { color: #ef4444; font-weight: bold; }
-    .stat-insig { color: #3b82f6; font-weight: bold; }
+    /* Global Typography & Background */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    
+    /* Headers */
+    h1, h2, h3 { color: #0f172a; font-weight: 700; letter-spacing: -0.5px; }
+    
+    /* Podium / Leaderboard Styles */
+    .podium-container { display: flex; justify-content: center; align-items: flex-end; gap: 15px; margin-top: 20px; margin-bottom: 40px; }
+    .podium-card { background: white; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border: 1px solid #e2e8f0; flex: 1; transition: transform 0.3s ease; }
+    .podium-card:hover { transform: translateY(-8px); border-color: #cbd5e1; }
+    .podium-rank { font-size: 2.5rem; margin-bottom: 10px; }
+    .podium-method { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin: 0; }
+    .podium-config { font-size: 0.85rem; color: #64748b; margin-top: 4px; margin-bottom: 15px; }
+    .podium-score { font-size: 1.5rem; font-weight: 700; color: #0ea5e9; margin: 0; }
+    
+    /* Card/Insight Box */
+    .insight-box { background-color: #ffffff; border-left: 4px solid #3b82f6; padding: 15px 20px; border-radius: 6px; margin: 15px 0; color: #334155; font-size: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .sig-green { color: #16a34a; font-weight: 700; }
+    .sig-red { color: #dc2626; font-weight: 700; }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# CONSTANTS & CONFIG
+# CONSTANTS & CONFIGURATION
 # ==========================================
 METHOD_COLORS = {
     'SHAP': '#94a3b8',         # Slate (Baseline)
@@ -41,7 +53,6 @@ METHOD_COLORS = {
     'R-Myerson': '#0ea5e9'     # Cyan (Proposed)
 }
 
-# Clean registry without redundant percentages in titles
 DATASET_REGISTRY = {
     "German Credit": {
         "main": "german_results_7methods.csv",
@@ -49,7 +60,7 @@ DATASET_REGISTRY = {
         "nemenyi": "german_nemenyi_results.csv",
         "corr": "german_auc_I_correlation.csv",
         "label": "High Default Rate (30%)",
-        "imbalance_rate": 30.0
+        "imb": 30.0
     },
     "Taiwan Credit": {
         "main": "taiwan_results_7methods_S.csv",
@@ -57,15 +68,15 @@ DATASET_REGISTRY = {
         "nemenyi": "taiwan_nemenyi_results.csv",
         "corr": "taiwan_auc_I_correlation.csv",
         "label": "Moderate Default Rate (22.12%)",
-        "imbalance_rate": 22.12
+        "imb": 22.12
     },
-    "Lending Club 10%": {
+    "Lending Club": {
         "main": "LC10pcdefaultresults.csv",
         "wilcoxon": "lc10_wilcoxon_cliffs_results.csv",
         "nemenyi": "lc10_nemenyi_results.csv",
         "corr": "lc10_auc_I_correlation.csv",
         "label": "Industry Standard (10%)",
-        "imbalance_rate": 10.0
+        "imb": 10.0
     },
     "Lending Club LC66": {
         "main": "LC66_results_7methods_noleak.csv",
@@ -73,7 +84,7 @@ DATASET_REGISTRY = {
         "nemenyi": "Lc66_nemenyi_results.csv",
         "corr": "Lc66_correlation.csv",
         "label": "Severe Imbalance (4.01%)",
-        "imbalance_rate": 4.01
+        "imb": 4.01
     },
     "Coursera Loans": {
         "main": "coursera_loans_results_7methods.csv",
@@ -81,234 +92,274 @@ DATASET_REGISTRY = {
         "nemenyi": "nemenyi_results_coursera.csv",
         "corr": "auc_I_correlation_coursera.csv",
         "label": "Extreme Imbalance (1%)",
-        "imbalance_rate": 1.0
+        "imb": 1.0
     }
 }
 
 # ==========================================
-# UTILITIES
+# UTILITY FUNCTIONS
 # ==========================================
 @st.cache_data
 def load_data(path, is_index=False):
+    """Robust file loader that handles missing files and cleans 'nan' Samplers."""
     variations = [path, path.replace(' .csv', '.csv'), path.replace('.csv', ' (1).csv')]
     for v in variations:
         if os.path.exists(v):
             try:
                 df = pd.read_csv(v, index_col=0 if is_index else None)
                 if 'Sampler' in df.columns:
-                    df['Sampler'] = df['Sampler'].fillna('None').replace('nan', 'None')
+                    # Clean the Sampler column
+                    df['Sampler'] = df['Sampler'].astype(str).replace(['nan', 'NaN'], 'None')
                 return df
-            except: pass
+            except Exception: pass
     return None
 
 def color_effect(val):
+    """Colors the Cliff's Delta Effect size text."""
     v = str(val).lower()
-    if v == 'large': return 'color: #059669; font-weight: bold;' # Green
-    if v == 'medium': return 'color: #d97706; font-weight: bold;' # Orange
-    return 'color: #94a3b8;' # Gray
+    if v == 'large': return 'color: #16a34a; font-weight: bold;'
+    if v == 'medium': return 'color: #d97706; font-weight: bold;'
+    return 'color: #64748b;'
 
-def get_consensus(pval_w, pval_n):
-    if pd.isna(pval_n): return "Pending"
-    if pval_w < 0.05 and pval_n < 0.05: return "✓ Yes"
-    return "✗ No"
-
-def color_consensus(val):
-    if '✓' in str(val): return 'background-color: #dcfce7; color: #166534; font-weight: bold;'
-    return 'color: #94a3b8;'
+def color_bool(val):
+    """Colors boolean text outputs."""
+    if '✓' in str(val) or 'Yes' in str(val): return 'color: #16a34a; font-weight: bold;'
+    return 'color: #dc2626;'
 
 # ==========================================
 # SIDEBAR NAVIGATION
 # ==========================================
-st.sidebar.markdown("### 🧭 Pipeline Navigation")
-views = ["📊 Cross-Dataset Synthesis"] + list(DATASET_REGISTRY.keys())
+st.sidebar.markdown("### 🧭 Navigation")
+views = ["📊 Cross-Dataset Comparison"] + list(DATASET_REGISTRY.keys())
 selection = st.sidebar.radio("Select View:", views)
-
 st.sidebar.markdown("---")
-st.sidebar.markdown("<small><b>Research Focus:</b> Maintaining XAI stability in severely imbalanced ensembles.</small>", unsafe_allow_html=True)
+st.sidebar.caption("Ensemble Learning & Coalition-aware Explainability for Imbalanced Credit Default.")
 
 # ==========================================
-# VIEW 1: CROSS-DATASET SYNTHESIS
+# VIEW 1: CROSS-DATASET COMPARISON
 # ==========================================
-if selection == "📊 Cross-Dataset Synthesis":
+if selection == "📊 Cross-Dataset Comparison":
     st.title("Ensemble Learning and Coalition-aware Explainability for Imbalanced Credit Default")
     
     st.markdown("""
     <div class='insight-box'>
-    <b>Research Synthesis:</b> This module compares 7 attribution methods across 5 datasets. 
-    As the default rate drops from 30% to 1%, standard methods like SHAP experience severe instability. 
-    The proposed <b>R-Myerson</b> maintains structural integrity by equitably redistributing graph-constrained contributions.
+    <b>Executive Summary:</b> This dashboard unifies the results of seven attribution methods across five financial datasets. 
+    It demonstrates how standard Explainable AI (XAI) methods degrade in highly imbalanced domains, and highlights the robustness 
+    of the <b>R-Myerson</b> algorithm in maintaining stability without compromising accuracy.
     </div>
     """, unsafe_allow_html=True)
     
-    # Load global data
+    # Compile global dataset
     global_results = []
     for name, cfg in DATASET_REGISTRY.items():
         df = load_data(cfg['main'])
         if df is not None:
             summary = df.groupby('Method')['S(α=0.5)'].mean().reset_index()
-            summary['Imbalance'] = cfg['imbalance_rate']
-            summary['Dataset'] = f"{name} ({cfg['imbalance_rate']}%)"
+            summary['Imbalance'] = cfg['imb']
+            summary['Dataset'] = f"{name} ({cfg['imb']}%)"
             global_results.append(summary)
             
     if global_results:
         combined = pd.concat(global_results).sort_values('Imbalance', ascending=False)
         
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            fig = px.line(combined, x='Dataset', y='S(α=0.5)', color='Method', 
-                          color_discrete_map=METHOD_COLORS, markers=True,
-                          title="Explainer Stability Degradation across Imbalance Levels")
-            fig.update_layout(xaxis_title="Datasets (Decreasing Minority Class →)", yaxis_title="Mean Performance-Interpretability (S-Score)", template="plotly_white", hovermode="x unified", height=500)
-            # Emphasize R-Myerson line
-            fig.update_traces(line=dict(width=4) if 'R-Myerson' in fig.data else dict(width=2))
-            st.plotly_chart(fig, use_container_width=True)
-            
-        with col2:
-            st.markdown("#### Overall Dominance")
-            overall_mean = combined.groupby('Method')['S(α=0.5)'].mean().sort_values(ascending=True).reset_index()
-            fig_bar = px.bar(overall_mean, x='S(α=0.5)', y='Method', orientation='h', color='Method', color_discrete_map=METHOD_COLORS, text_auto='.3f')
-            fig_bar.update_layout(showlegend=False, template="plotly_white", height=450, xaxis_title="Global Mean S-Score")
-            st.plotly_chart(fig_bar, use_container_width=True)
+        st.subheader("Global Explainer Stability across Default Rates")
+        st.markdown("Observe how the S-Score (Performance-Interpretability balance) fluctuates as default rates become extreme (moving from left to right).")
+        
+        # Grouped Bar Chart instead of line graph for better visual impact
+        fig_bar = px.bar(combined, x='Dataset', y='S(α=0.5)', color='Method', 
+                         color_discrete_map=METHOD_COLORS, barmode='group',
+                         title="Mean S-Score Comparison across Imbalance Levels")
+        fig_bar.update_layout(
+            xaxis_title="Datasets (Sorted by Decreasing Default Rate →)", 
+            yaxis_title="Mean S(α=0.5) Score",
+            template="plotly_white",
+            height=500,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
 # ==========================================
-# VIEW 2: DATASET SPECIFIC
+# VIEW 2: SPECIFIC DATASET DASHBOARD
 # ==========================================
 else:
     cfg = DATASET_REGISTRY[selection]
-    st.header(f"{selection}")
-    st.caption(f"Dataset Profile: {cfg['label']}")
+    st.title(f"{selection}")
+    st.markdown(f"**Dataset Characteristic:** {cfg['label']}")
     
-    # Load Data
+    # Load all files for the dataset
     main_df = load_data(cfg['main'])
     wil_df = load_data(cfg['wilcoxon'])
     nem_df = load_data(cfg['nemenyi'], is_index=True)
     corr_df = load_data(cfg['corr'])
     
     if main_df is None:
-        st.error(f"⚠️ Results file `{cfg['main']}` not found.")
+        st.error(f"⚠️ Primary results file (`{cfg['main']}`) not found in repository.")
         st.stop()
 
-    # --- TOP 3 PODIUM ---
+    # --- TOP 3 LEADERBOARD (PODIUM) ---
+    st.markdown("### 🏆 Top 3 Configurations Leaderboard")
     top3 = main_df.sort_values('S(α=0.5)', ascending=False).head(3).reset_index(drop=True)
-    cols = st.columns(3)
-    medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
-    for i in range(len(top3)):
-        with cols[i]:
-            st.markdown(f"""
-            <div class='leaderboard-card'>
-                <div class='rank-icon'>{medals[i]}</div>
-                <h3 style='margin:5px 0; color:#0f172a;'>{top3.loc[i, 'Method']}</h3>
-                <p style='color:#64748b; margin:0;'>{top3.loc[i, 'Model']} + {top3.loc[i, 'Sampler']}</p>
-                <h2 style='color:#0ea5e9; margin:10px 0;'>{top3.loc[i, 'S(α=0.5)']:.4f}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- TABS ---
-    t1, t2, t3 = st.tabs(["🎯 AUC vs Interpretability", "🧩 Q vs I (Group Quality)", "🔬 Statistical Consensus"])
     
-    # --- TAB 1: AUC vs I ---
+    # Create HTML Podium
+    podium_html = "<div class='podium-container'>"
+    medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
+    heights = ["100%", "90%", "80%"] # Visual hierarchy for the podium
+    for i in range(len(top3)):
+        podium_html += f"""
+        <div class='podium-card' style='height: {heights[i]};'>
+            <div class='podium-rank'>{medals[i]}</div>
+            <p class='podium-method'>{top3.loc[i, 'Method']}</p>
+            <p class='podium-config'>{top3.loc[i, 'Model']} + {top3.loc[i, 'Sampler']}</p>
+            <p class='podium-score'>{top3.loc[i, 'S(α=0.5)']:.4f}</p>
+        </div>
+        """
+    podium_html += "</div>"
+    st.markdown(podium_html, unsafe_allow_html=True)
+
+    # --- TABS NAVIGATION ---
+    t1, t2, t3, t4 = st.tabs([
+        "🎯 Accuracy vs Interpretability", 
+        "🧩 Q vs I Analysis", 
+        "🔬 Statistical Significance", 
+        "🗄️ Raw Data"
+    ])
+    
+    # ==================================
+    # TAB 1: AUC vs I (PARETO)
+    # ==================================
     with t1:
         c1, c2 = st.columns([1.5, 1])
         with c1:
             fig_p = px.scatter(main_df, x='AUC', y='I', color='Method', symbol='Model',
                              hover_data=['Sampler'], color_discrete_map=METHOD_COLORS,
-                             title="Pareto Front (Accuracy vs. Interpretability)")
-            fig_p.update_traces(marker=dict(size=14, opacity=0.8, line=dict(width=1, color='white')))
-            fig_p.update_layout(template="plotly_white", height=450)
+                             title="Pareto Front: Accuracy vs. Interpretability")
+            fig_p.update_traces(marker=dict(size=14, opacity=0.85, line=dict(width=1, color='white')))
+            fig_p.update_layout(template="plotly_white", height=500)
             st.plotly_chart(fig_p, use_container_width=True)
             
         with c2:
-            st.markdown("#### Correlation Insight")
-            if corr_df is not None:
-                rho, p = corr_df['Spearman_rho'].iloc[0], corr_df['Spearman_p'].iloc[0]
-                sig_text = "<span class='stat-sig'>Significant Trade-off</span>" if p < 0.05 else "<span class='stat-insig'>Independent Relationship</span>"
-                st.markdown(f"""
-                <div style='padding:15px; border:1px solid #e2e8f0; border-radius:8px;'>
-                <b>Spearman ρ:</b> {rho:.3f} <br>
-                <b>p-value:</b> {p:.3f} <br><br>
-                <b>Status:</b> {sig_text}<br><br>
-                <i>Analysis:</i> {'As accuracy increases, interpretability tends to decrease, confirming a strict trade-off in this dataset.' if p < 0.05 else 'Because the p-value > 0.05, Accuracy and Interpretability are independent. We can optimize explainability (via R-Myerson) without sacrificing the ensemble predictive power.'}
-                </div>
-                """, unsafe_allow_html=True)
-            else: st.info("Correlation metrics pending.")
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            # Calculate and analyze AUC vs I using pandas to avoid scipy dependencies
+            auc_i_rho = main_df['AUC'].corr(main_df['I'], method='spearman')
+            st.markdown(f"""
+            <div class='insight-box'>
+            <b>Analysis of Trade-Off:</b><br><br>
+            The Spearman rank correlation between predictive Accuracy (AUC) and Interpretability (I-Score) across all models here is <b>ρ = {auc_i_rho:.3f}</b>.<br><br>
+            <i>Interpretation:</i> {'A negative correlation indicates a classical trade-off: highly accurate models are harder to interpret.' if auc_i_rho < -0.1 else 'A positive or near-zero correlation suggests that for this dataset, we can successfully extract highly stable explanations without sacrificing the predictive power of the ensemble.'}
+            </div>
+            """, unsafe_allow_html=True)
 
-    # --- TAB 2: Q vs I ---
+    # ==================================
+    # TAB 2: Q vs I (GROUP QUALITY)
+    # ==================================
     with t2:
-        st.markdown("#### Does better feature grouping lead to better explanations?")
-        owen_df = main_df[main_df['Method'].isin(['Owen-Domain', 'Owen-Data', 'Owen-Model'])].dropna(subset=['Q', 'I'])
+        st.markdown("### Does better feature grouping lead to better explanations?")
         
-        if not owen_df.empty:
+        # Isolate Owen variants
+        owen_df = main_df[main_df['Method'].isin(['Owen-Domain', 'Owen-Data', 'Owen-Model'])].copy()
+        owen_clean = owen_df.dropna(subset=['Q', 'I']).copy()
+        
+        if len(owen_clean) >= 3:
             qc1, qc2 = st.columns([1.5, 1])
             with qc1:
-                fig_q = px.scatter(owen_df, x='Q', y='I', color='Method', hover_data=['Model'],
-                                   color_discrete_map=METHOD_COLORS, trendline="ols",
-                                   title="Group Quality (Q) vs Interpretability (I)")
-                fig_q.update_traces(marker=dict(size=12))
-                fig_q.update_layout(template="plotly_white", height=450)
+                fig_q = px.scatter(owen_clean, x='Q', y='I', color='Method',
+                                   hover_data=['Model', 'Sampler'], color_discrete_map=METHOD_COLORS,
+                                   trendline="ols", # Needs statsmodels which is in requirements
+                                   title=f"Group Quality (Q) vs Interpretability (I) — n={len(owen_clean)} points")
+                fig_q.update_traces(marker=dict(size=14, line=dict(width=1, color='DarkSlateGrey')))
+                fig_q.update_layout(template="plotly_white", height=500)
                 st.plotly_chart(fig_q, use_container_width=True)
+            
             with qc2:
-                # Calculate correlation for Q vs I using pandas (bypassing scipy dependency)
-                q_rho = owen_df['Q'].corr(owen_df['I'], method='spearman')
-                
-                # Check for NaN in correlation (e.g. if variance is 0)
-                if np.isnan(q_rho):
-                    q_rho = 0.0
+                # Robust pandas spearman correlation calculation
+                q_rho = owen_clean['Q'].corr(owen_clean['I'], method='spearman')
+                if np.isnan(q_rho): q_rho = 0.0
                 
                 st.markdown(f"""
                 <div class='insight-box'>
-                <b>Automated Analysis:</b><br>
-                The Spearman correlation between Coalition Group Quality (Q) and Interpretability (I) is <b>ρ = {q_rho:.3f}</b>.
-                <br><br>
-                {f'Since there is a strong positive correlation, it proves that forming highly dependent feature coalitions directly improves the stability of the Owen values.' if q_rho > 0.3 else 'The relationship is weak, suggesting that while grouping matters, the mathematical allocation rule (like Myerson) plays a larger role in stability.'}
+                <b>Group Quality Analysis:</b><br><br>
+                The Spearman rank correlation is <b>ρ = {q_rho:.3f}</b>.<br><br>
+                <i>Interpretation:</i> {'A strong positive relationship confirms that algorithmically defining better feature coalitions (higher Q) directly leads to more stable and consistent feature attributions (higher I).' if q_rho > 0.3 else 'The relationship is weak in this dataset, indicating that the baseline distribution rules impact stability more than the coalition boundaries themselves.'}
                 </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("No valid Q-Score data available for this dataset.")
+            st.info("⚠️ Not enough valid Q and I values to compute a meaningful correlation for the Owen variants in this dataset.")
 
-    # --- TAB 3: STATISTICAL CONSENSUS ---
+    # ==================================
+    # TAB 3: STATISTICAL SIGNIFICANCE
+    # ==================================
     with t3:
-        st.markdown("#### Rigorous Pairwise Comparison")
-        st.markdown("We establish a **True Difference** only if a method pair is statistically significant in *both* the pairwise Wilcoxon test and the multi-group Nemenyi test (p < 0.05).")
+        st.markdown("### Rigorous Pairwise Comparison")
+        st.markdown("This section determines which methods genuinely differ from one another. A difference is considered a **True Consensus Difference** only if BOTH the pairwise Wilcoxon test AND the multi-comparison Nemenyi test confirm significance ($p < 0.05$).")
         
-        sc1, sc2 = st.columns([1, 1])
+        # Include AUC vs I stats from the uploaded csv here as requested
+        if corr_df is not None and not corr_df.empty:
+            c_rho, c_p = corr_df['Spearman_rho'].iloc[0], corr_df['Spearman_p'].iloc[0]
+            st.markdown(f"**AUC-I Correlation Test Results:** Spearman ρ = `{c_rho:.3f}` (p-value: `{c_p:.3f}`) | Kendall τ = `{corr_df['Kendall_tau'].iloc[0]:.3f}` (p-value: `{corr_df['Kendall_p'].iloc[0]:.3f}`)")
+            st.divider()
+
+        sc1, sc2 = st.columns([1, 1.2])
         
         with sc1:
+            st.markdown("#### Wilcoxon & Consensus Table")
             if wil_df is not None and nem_df is not None:
-                # Build Consensus Table
+                # Combine Wilcoxon and Nemenyi into a clean, reduced table
                 consensus_data = []
                 for _, row in wil_df.iterrows():
                     m1, m2 = row['Method1'], row['Method2']
                     eff = row['Effect_size']
-                    w_p = row['p_value']
+                    w_sig = str(row['Significant']).strip()
                     
-                    # Safe Nemenyi lookup
-                    n_p = np.nan
-                    if m1 in nem_df.index and m2 in nem_df.columns: n_p = nem_df.loc[m1, m2]
-                    elif m2 in nem_df.index and m1 in nem_df.columns: n_p = nem_df.loc[m2, m1]
+                    # Fetch Nemenyi p-value safely
+                    n_p = 1.0
+                    try:
+                        n_p = float(nem_df.loc[m1, m2])
+                    except KeyError:
+                        try: n_p = float(nem_df.loc[m2, m1])
+                        except KeyError: pass
+                    
+                    n_sig = "✓" if n_p < 0.05 else "✗"
+                    consensus = "✓ Yes" if ('✓' in w_sig and n_sig == '✓') else "✗ No"
                     
                     consensus_data.append({
                         "Method 1": m1, "Method 2": m2,
+                        "Wilcoxon Sig.": w_sig,
                         "Effect Size": eff.title(),
-                        "True Difference": get_consensus(w_p, n_p)
+                        "True Consensus": consensus
                     })
                 
                 st.dataframe(
                     pd.DataFrame(consensus_data).style
                     .map(color_effect, subset=['Effect Size'])
-                    .map(color_consensus, subset=['True Difference']),
+                    .map(color_bool, subset=['Wilcoxon Sig.', 'True Consensus']),
                     hide_index=True, height=450, use_container_width=True
                 )
-            else: st.warning("Requires both Wilcoxon and Nemenyi CSVs.")
+            else: 
+                st.warning("Both Wilcoxon and Nemenyi CSV files are required to display the consensus table.")
             
         with sc2:
-            st.markdown("<div style='text-align:center'><b>Nemenyi Post-hoc Heatmap</b></div>", unsafe_allow_html=True)
+            st.markdown("#### Nemenyi Post-hoc Heatmap")
             if nem_df is not None:
-                # Custom colorscale: Red for significant (<0.05), Blue for non-significant
-                fig_nem = px.imshow(nem_df, text_auto=".3f", 
-                                    color_continuous_scale=[[0, '#ef4444'], [0.05, '#fca5a5'], [0.051, '#bfdbfe'], [1, '#1e3a8a']], 
-                                    zmin=0, zmax=0.2)
+                # Fixed colorscale: Green for significant (p < 0.05), Red for not significant (p >= 0.05)
+                # This aligns with the user's request for intuitive reading
+                colorscale = [
+                    [0.0, '#16a34a'],    # Deep Green for 0.0 (Highly significant)
+                    [0.049, '#4ade80'],  # Light Green for just under 0.05
+                    [0.05, '#fca5a5'],   # Light Red for 0.05
+                    [1.0, '#dc2626']     # Deep Red for 1.0 (Not significant at all)
+                ]
+                fig_nem = px.imshow(nem_df, text_auto=".3f", color_continuous_scale=colorscale, zmin=0, zmax=1.0)
                 fig_nem.update_layout(height=450, margin=dict(t=10, b=0), coloraxis_showscale=False)
                 st.plotly_chart(fig_nem, use_container_width=True)
-                st.markdown("<small><b>How to read:</b> <span style='color:#ef4444; font-weight:bold;'>Red tiles</span> indicate a p-value < 0.05, meaning the two methods produce statistically distinct explanations.</small>", unsafe_allow_html=True)
-            else: st.warning("Nemenyi data not found.")
+                st.markdown("<small><b>How to read:</b> <span class='sig-green'>Green cells (p < 0.05)</span> indicate that the two methods are statistically significantly different. <span class='sig-red'>Red cells (p ≥ 0.05)</span> indicate no significant difference.</small>", unsafe_allow_html=True)
+            else: 
+                st.warning("Nemenyi data not found.")
+
+    # ==================================
+    # TAB 4: RAW DATA
+    # ==================================
+    with t4:
+        st.markdown("### Raw Analytical Data")
+        st.dataframe(main_df, use_container_width=True)
+        csv_data = main_df.to_csv(index=False).encode('utf-8')
+        st.download_button("Download Raw CSV", data=csv_data, file_name=f"{selection}_data.csv", mime="text/csv")
