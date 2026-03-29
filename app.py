@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from scipy.stats import spearmanr
 import os
 
 # ==========================================
@@ -249,12 +248,17 @@ else:
                 fig_q.update_layout(template="plotly_white", height=450)
                 st.plotly_chart(fig_q, use_container_width=True)
             with qc2:
-                # Calculate correlation for Q vs I
-                q_rho, q_p = spearmanr(owen_df['Q'], owen_df['I'])
+                # Calculate correlation for Q vs I using pandas (bypassing scipy dependency)
+                q_rho = owen_df['Q'].corr(owen_df['I'], method='spearman')
+                
+                # Check for NaN in correlation (e.g. if variance is 0)
+                if np.isnan(q_rho):
+                    q_rho = 0.0
+                
                 st.markdown(f"""
                 <div class='insight-box'>
                 <b>Automated Analysis:</b><br>
-                The correlation between Coalition Group Quality (Q) and Interpretability (I) is <b>ρ = {q_rho:.3f}</b> (p={q_p:.3f}).
+                The Spearman correlation between Coalition Group Quality (Q) and Interpretability (I) is <b>ρ = {q_rho:.3f}</b>.
                 <br><br>
                 {f'Since there is a strong positive correlation, it proves that forming highly dependent feature coalitions directly improves the stability of the Owen values.' if q_rho > 0.3 else 'The relationship is weak, suggesting that while grouping matters, the mathematical allocation rule (like Myerson) plays a larger role in stability.'}
                 </div>
