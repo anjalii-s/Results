@@ -30,11 +30,8 @@ st.markdown("""
     .metric-label { font-size: 0.9rem; color: #64748b; font-weight: 500; text-transform: uppercase; }
     
     /* Leaderboard Cards */
-    .lb-card { padding: 20px; border-radius: 12px; text-align: center; border: 2px solid transparent; transition: transform 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    .lb-card { padding: 20px; border-radius: 12px; text-align: center; transition: transform 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
     .lb-card:hover { transform: translateY(-5px); }
-    .lb-1 { background: linear-gradient(to bottom, #fefce8, #ffffff); border-color: #fde047; }
-    .lb-2 { background: linear-gradient(to bottom, #f1f5f9, #ffffff); border-color: #cbd5e1; }
-    .lb-3 { background: linear-gradient(to bottom, #fff7ed, #ffffff); border-color: #fed7aa; }
     .lb-rank { font-size: 2rem; margin-bottom: 5px; }
     .lb-method { font-size: 1.3rem; font-weight: 700; color: #0f172a; margin: 0; }
     .lb-config { font-size: 0.9rem; color: #475569; margin: 5px 0 15px 0; }
@@ -129,6 +126,15 @@ def color_consensus(val):
     if '✓' in str(val): return 'background-color: #dcfce7; color: #166534; font-weight: bold;'
     return 'color: #94a3b8;'
 
+def get_wilcoxon_sig(sig_val, p_val):
+    """Safely determines if Wilcoxon is significant."""
+    sig_str = str(sig_val).lower()
+    if '✓' in sig_str or 'yes' in sig_str or 'true' in sig_str: return True
+    try:
+        return float(p_val) < 0.05
+    except:
+        return False
+
 # ==========================================
 # SIDEBAR NAVIGATION
 # ==========================================
@@ -147,8 +153,7 @@ if selection == "📊 Cross-Dataset Synthesis":
     st.markdown("""
     <div class='insight-box'>
     <b>Executive Summary:</b> This dashboard unifies the results of seven attribution methods across five financial datasets. 
-    It demonstrates how standard Explainable AI (XAI) methods degrade in highly imbalanced domains, and highlights the robustness 
-    of the <b>R-Myerson</b> algorithm in maintaining stability without compromising accuracy.
+    By pressing the <b>Play</b> button below, you can visually track how standard Explainable AI (XAI) methods degrade as the dataset becomes increasingly imbalanced (from 30% down to 1% default rate), highlighting the robustness of the <b>R-Myerson</b> algorithm.
     </div>
     """, unsafe_allow_html=True)
     
@@ -156,18 +161,53 @@ if selection == "📊 Cross-Dataset Synthesis":
     for name, cfg in DATASET_REGISTRY.items():
         df = load_data(cfg['main'])
         if df is not None:
-            summary = df.groupby('Method')['S(α=0.5)'].mean().reset_index()
-            summary['Imbalance'] = cfg['imb']
-            summary['Dataset'] = f"{name} ({cfg['imb']}%)"
-            global_results.append(summary)
+            df_copy = df.copy()
+            df_copy['Imbalance'] = cfg['imb']
+            df_copy['Dataset'] = f"{name} ({cfg['imb']}%)"
+            df_copy['Config'] = df_copy['Method'] + "_" + df_copy['Model'] + "_" + df_copy['Sampler']
+            global_results.append(df_copy)
             
     if global_results:
+        # Combine and sort so the animation flows from highest to lowest imbalance
         combined = pd.concat(global_results).sort_values('Imbalance', ascending=False)
         
-        st.subheader("Global Explainer Stability across Default Rates")
+        st.subheader("Dynamic Pareto Front Shift Across Imbalance Levels")
+        
+        # Animated Bubble Chart
+        fig_anim = px.scatter(
+            combined, 
+            x="AUC", y="I", 
+            animation_frame="Dataset", 
+            animation_group="Config",
+            color="Method", 
+            symbol="Model",
+            size="S(α=0.5)",
+            hover_name="Sampler",
+            color_discrete_map=METHOD_COLORS,
+            range_x=[combined['AUC'].min() - 0.02, combined['AUC'].max() + 0.02],
+            range_y=[0.0, 1.05]
+        )
+        
+        fig_anim.update_traces(marker=dict(line=dict(width=1, color='white')), opacity=0.85)
+        fig_anim.update_layout(
+            template="plotly_white", 
+            height=600,
+            xaxis_title="Predictive Accuracy (AUC)",
+            yaxis_title="Interpretability (I-Score)"
+        )
+        # Speed up animation slightly
+        fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1200
+        st.plotly_chart(fig_anim, use_container_width=True)
+        
+        st.markdown("---")
+        st.subheader("Global Explainer Stability (Mean S-Score)")
+        
+        # Aggregate mean values for the line chart
+        summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
+        summary_df = summary_df.sort_values('Imbalance', ascending=False)
         
         # Professional Line Chart highlighting trend decay
-        fig_line = px.line(combined, x='Dataset', y='S(α=0.5)', color='Method', 
+        fig_line = px.line(summary_df, x='Dataset', y='S(α=0.5)', color='Method', 
                            color_discrete_map=METHOD_COLORS, markers=True,
                            line_shape='spline')
         
@@ -184,7 +224,7 @@ if selection == "📊 Cross-Dataset Synthesis":
             yaxis_title="Mean S(α=0.5) Score",
             template="plotly_white",
             hovermode="x unified",
-            height=500,
+            height=450,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
         st.plotly_chart(fig_line, use_container_width=True)
@@ -212,13 +252,18 @@ else:
     top3 = main_df.sort_values('S(α=0.5)', ascending=False).head(3).reset_index(drop=True)
     
     cols = st.columns(3)
-    classes = ["lb-1", "lb-2", "lb-3"]
+    # Inline CSS styles for guaranteed rendering of the podium colors
+    bg_styles = [
+        "background: linear-gradient(180deg, #fef08a 0%, #ffffff 100%); border: 2px solid #fde047;", # Gold
+        "background: linear-gradient(180deg, #e2e8f0 0%, #ffffff 100%); border: 2px solid #cbd5e1;", # Silver
+        "background: linear-gradient(180deg, #fed7aa 0%, #ffffff 100%); border: 2px solid #fdba74;"  # Bronze
+    ]
     medals = ["🥇 1st Place", "🥈 2nd Place", "🥉 3rd Place"]
     
     for i in range(len(top3)):
         with cols[i]:
             st.markdown(f"""
-            <div class='lb-card {classes[i]}'>
+            <div class='lb-card' style='{bg_styles[i]}'>
                 <div class='lb-rank'>{medals[i]}</div>
                 <h3 class='lb-method'>{top3.loc[i, 'Method']}</h3>
                 <p class='lb-config'>{top3.loc[i, 'Model']} + {top3.loc[i, 'Sampler']}</p>
@@ -288,7 +333,9 @@ else:
                 
                 st.markdown(f"""
                 <div class='insight-box'>
-                <b>Group Quality Analysis:</b><br><br>
+                <b>Derivation Method:</b> This relationship is derived using the <b>Spearman rank correlation coefficient (ρ)</b>. We pair the Group Quality (Q) and Interpretability (I) scores for each configuration of the Owen variants, rank them, and measure their monotonic relationship. This non-parametric approach ensures robustness against outliers and non-linear patterns.
+                <br><br>
+                <b>Resulting Analysis:</b><br>
                 The Spearman rank correlation is <b>ρ = {q_rho:.3f}</b>.<br><br>
                 <i>Interpretation:</i> {'A strong positive relationship confirms that algorithmically defining better feature coalitions (higher Q) directly leads to more stable and consistent feature attributions (higher I).' if q_rho > 0.3 else 'The relationship is weak in this dataset, indicating that the baseline distribution rules impact stability more than the coalition boundaries themselves.'}
                 </div>
@@ -328,7 +375,7 @@ else:
         st.markdown("### Rigorous Pairwise Comparison")
         st.markdown("A **True Consensus Difference** is established only if BOTH the pairwise Wilcoxon test AND the multi-comparison Nemenyi test confirm significance ($p < 0.05$).")
         
-        sc1, sc2 = st.columns([1, 1.2])
+        sc1, sc2 = st.columns([1.1, 1])
         
         with sc1:
             st.markdown("#### Wilcoxon & Consensus Table")
@@ -339,7 +386,8 @@ else:
                     eff = row['Effect_size']
                     
                     # Wilcoxon boolean conversion
-                    w_sig_bool = '✓' in str(row['Significant']) or str(row['p_value']) < '0.05'
+                    w_is_sig = get_wilcoxon_sig(row.get('Significant', ''), row.get('p_value', 1.0))
+                    w_display = "✓ Yes" if w_is_sig else "✗ No"
                     
                     # Safe Nemenyi lookup
                     n_p = 1.0
@@ -350,10 +398,11 @@ else:
                     
                     n_sig_bool = n_p < 0.05
                     
-                    consensus = "✓ Yes" if (w_sig_bool and n_sig_bool) else "✗ No"
+                    consensus = "✓ Yes" if (w_is_sig and n_sig_bool) else "✗ No"
                     
                     consensus_data.append({
                         "Method 1": m1, "Method 2": m2,
+                        "Wilcoxon Sig.": w_display,
                         "Effect Size": str(eff).title(),
                         "Consensus Diff": consensus
                     })
@@ -361,8 +410,8 @@ else:
                 st.dataframe(
                     pd.DataFrame(consensus_data).style
                     .map(color_effect, subset=['Effect Size'])
-                    .map(color_consensus, subset=['Consensus Diff']),
-                    hide_index=True, height=400, use_container_width=True
+                    .map(color_consensus, subset=['Wilcoxon Sig.', 'Consensus Diff']),
+                    hide_index=True, height=450, use_container_width=True
                 )
             else: 
                 st.warning("Both Wilcoxon and Nemenyi CSV files are required to display the consensus table.")
@@ -378,7 +427,7 @@ else:
                     [1.0, '#f1f5f9']     # Light Slate
                 ]
                 fig_nem = px.imshow(nem_df, text_auto=".3f", color_continuous_scale=colorscale, zmin=0, zmax=1.0)
-                fig_nem.update_layout(height=400, margin=dict(t=10, b=0, l=0, r=0), coloraxis_showscale=False)
+                fig_nem.update_layout(height=450, margin=dict(t=10, b=0, l=0, r=0), coloraxis_showscale=False)
                 st.plotly_chart(fig_nem, use_container_width=True)
                 st.markdown("<small><b>How to read:</b> <span style='color:#10b981; font-weight:bold;'>Green cells (p < 0.05)</span> indicate that the two methods are statistically significantly different. Gray cells indicate no significant difference.</small>", unsafe_allow_html=True)
             else: 
