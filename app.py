@@ -2,20 +2,20 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np
+import os
 
 # ==========================================
 # PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(
-    page_title="Credit Risk XAI Explorer",
-    page_icon="📊",
+    page_title="XAI Credit Risk Dashboard",
+    page_icon="🏦",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # ==========================================
-# COLOR PALETTES (Matching Thesis)
+# THEME & COLORS
 # ==========================================
 METHOD_COLORS = {
     'SHAP': '#1f77b4',
@@ -28,188 +28,179 @@ METHOD_COLORS = {
 }
 
 # ==========================================
-# SIDEBAR & DATA LOADING
+# DATASET REGISTRY
 # ==========================================
-st.sidebar.title("⚙️ Configuration")
-st.sidebar.markdown("Upload a results CSV generated from the methodology pipeline to visualize the Accuracy-Interpretability trade-off.")
+DATASET_CONFIG = {
+    "🇩🇪 German Credit (30%)": {
+        "main": "german_results_7methods.csv",
+        "wilcoxon": "german_wilcoxon_cliffs_results.csv",
+        "nemenyi": "german_nemenyi_results.csv",
+        "corr": "german_auc_I_correlation.csv",
+        "desc": "High default rate (30%). Used to test XAI stability in balanced scenarios."
+    },
+    "🇹🇼 Taiwan Credit (22.12%)": {
+        "main": "taiwan_results_7methods_S.csv",
+        "wilcoxon": "taiwan_wilcoxon_cliffs_results.csv",
+        "nemenyi": "taiwan_nemenyi_results.csv",
+        "corr": "taiwan_auc_I_correlation.csv",
+        "desc": "Moderate imbalance. Focus on contextual feature dependencies."
+    },
+    "🏦 Lending Club (10%)": {
+        "main": "LC10pcdefaultresults.csv",
+        "wilcoxon": "lc10_wilcoxon_cliffs_results.csv",
+        "nemenyi": "lc10_nemenyi_results.csv",
+        "corr": "lc10_auc_I_correlation.csv",
+        "desc": "Standard industry default rate. Benchmarking ensemble performance."
+    },
+    "🏦 Lending Club LC66 (4.01%)": {
+        "main": "LC66_results_7methods_noleak.csv",
+        "wilcoxon": "Lc66_wilcoxon_cliffs_results.csv",
+        "nemenyi": "Lc66_nemenyi_results.csv",
+        "corr": "Lc66_correlation.csv",
+        "desc": "Severe imbalance. Testing robustness to rare event prediction."
+    },
+    "🎓 Coursera Loans (1%)": {
+        "main": "coursera_loans_results_7methods.csv",
+        "wilcoxon": "coursera_wilcoxon_cliffs_results.csv",
+        "nemenyi": "coursera_nemenyi_results.csv",
+        "corr": "coursera_auc_I_correlation.csv",
+        "desc": "Extreme imbalance (1%). Evaluating XAI reliability at the edge."
+    }
+}
 
-uploaded_file = st.sidebar.file_uploader("Upload Results CSV", type=["csv"])
-
-if uploaded_file is None:
-    st.title("📊 Coalition-Aware XAI Dashboard")
-    st.markdown("""
-    ### Welcome to the Credit Risk Explainability Explorer!
-    Please upload a results CSV file from the sidebar to begin.
-    
-    **Compatible Datasets:**
-    * `coursera_loans_results_7methods.csv` (1% Default)
-    * `LC66_results_7methods_noleak.csv` (4% Default)
-    * `LC10pcdefaultresults.csv` (10% Default)
-    * `taiwan_results_7methods_S.csv` (22% Default)
-    * `german_results_7methods.csv` (30% Default)
-    """)
-    st.stop()
-
-# Read the uploaded data
+# ==========================================
+# UTILITIES
+# ==========================================
 @st.cache_data
-def load_data(file):
-    df = pd.read_csv(file)
-    return df
+def load_csv(path, index_col=None):
+    # Try multiple variations of the filename to prevent errors
+    variations = [path, path.replace('.csv', ' (1).csv'), path.replace('.csv', ' .csv')]
+    for v in variations:
+        if os.path.exists(v):
+            try:
+                return pd.read_csv(v, index_col=index_col)
+            except: pass
+    return None
 
-df = load_data(uploaded_file)
-
-# Dynamic Title based on upload
-st.title(f"📊 Dashboard: `{uploaded_file.name}`")
-st.markdown("---")
+def style_df(df):
+    if df is None: return None
+    def color_size(val):
+        if str(val).lower() == 'large': return 'background-color: rgba(44, 160, 44, 0.2); font-weight: bold;'
+        if str(val).lower() == 'medium': return 'background-color: rgba(255, 127, 14, 0.2);'
+        return ''
+    return df.style.applymap(color_size, subset=['Effect_size']) if 'Effect_size' in df.columns else df
 
 # ==========================================
-# MAIN DASHBOARD TABS
+# SIDEBAR NAVIGATION
 # ==========================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🏆 Leaderboard", 
-    "📈 Method Comparison", 
-    "🎯 Pareto Trade-off", 
-    "🔥 Heatmaps",
-    "🗄️ Raw Data"
-])
+st.sidebar.image("https://img.icons8.com/fluency/96/analytics.png", width=80)
+st.sidebar.title("Thesis Explorer")
+selection = st.sidebar.radio("Go to:", ["🏠 Home & Global Synthesis"] + list(DATASET_CONFIG.keys()))
 
-# ------------------------------------------
-# TAB 1: LEADERBOARD
-# ------------------------------------------
-with tab1:
-    st.subheader("Top 10 Configurations by S(α=0.5)")
-    st.markdown("This table highlights the best combinations of Model, Sampler, and XAI Method that balance both predictive power (AUC) and Interpretability (I).")
+# ==========================================
+# TAB 1: HOME & GLOBAL SYNTHESIS
+# ==========================================
+if selection == "🏠 Home & Global Synthesis":
+    st.title("🏦 Ensemble Learning & XAI in Credit Risk")
+    st.markdown("""
+    ### Thesis Overview
+    **Research Title:** *Analysis of the Accuracy and Interpretability Trade-Off in Imbalanced Loan Default Prediction.*
     
-    # Sort and format
-    top_df = df.sort_values(by="S(α=0.5)", ascending=False).head(10)
-    top_df_display = top_df[['Model', 'Sampler', 'Method', 'AUC', 'I', 'S(α=0.5)']].copy()
+    This dashboard provides an interactive look at how **Cooperative Game Theory** (Shapley, Banzhaf, Myerson, and Owen) 
+    can provide more stable and regulator-aligned explanations for complex credit models (RF, XGBoost, LightGBM).
+    """)
     
-    # Highlight the absolute best row
-    st.dataframe(
-        top_df_display.style.highlight_max(subset=['S(α=0.5)'], color='lightgreen', axis=0)
-              .format({'AUC': "{:.4f}", 'I': "{:.4f}", 'S(α=0.5)': "{:.4f}"}),
-        use_container_width=True
-    )
+    st.divider()
+    st.subheader("🌐 Global Performance Summary: R-Myerson vs. Others")
     
-    # Quick metrics for best config
-    best_config = top_df.iloc[0]
-    st.success(f"🥇 **Best Overall Configuration:** **{best_config['Method']}** using **{best_config['Model']}** with **{best_config['Sampler']}**.")
-    
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Top AUC", f"{best_config['AUC']:.4f}")
-    col2.metric("Top Interpretability (I)", f"{best_config['I']:.4f}")
-    col3.metric("Top S(α=0.5)", f"{best_config['S(α=0.5)']:.4f}")
+    # Aggregate S(alpha) across all datasets for a global comparison
+    global_data = []
+    for name, cfg in DATASET_CONFIG.items():
+        df = load_csv(cfg['main'])
+        if df is not None:
+            means = df.groupby('Method')['S(α=0.5)'].mean().reset_index()
+            means['Dataset'] = name.split(' ')[0] # Just the flag/name
+            global_data.append(means)
+            
+    if global_data:
+        full_global = pd.concat(global_data)
+        fig_global = px.line(full_global, x='Dataset', y='S(α=0.5)', color='Method',
+                            markers=True, color_discrete_map=METHOD_COLORS,
+                            title="Global Stability Profile (S-Score) across Imbalance Levels")
+        fig_global.update_layout(yaxis_title="Mean Performance-Interpretability Score")
+        st.plotly_chart(fig_global, use_container_width=True)
+        st.info("💡 **Observation:** Notice how R-Myerson (Cyan) maintains high stability even as the default rate drops to 1%.")
 
-# ------------------------------------------
-# TAB 2: METHOD COMPARISON (Bar Charts)
-# ------------------------------------------
-with tab2:
-    st.subheader("Average Metrics by Explanation Method")
+# ==========================================
+# DATASET SPECIFIC PAGES
+# ==========================================
+else:
+    cfg = DATASET_CONFIG[selection]
+    st.title(f"{selection}")
+    st.caption(cfg['desc'])
     
-    # Group by method
-    method_means = df.groupby('Method')[['AUC', 'I', 'S(α=0.5)']].mean().reset_index()
+    # Load Data
+    main_df = load_csv(cfg['main'])
+    wilcoxon_df = load_csv(cfg['wilcoxon'])
+    nemenyi_df = load_csv(cfg['nemenyi'], index_col=0)
+    corr_df = load_csv(cfg['corr'])
     
-    # Sort to ensure consistent colors
-    method_means['Method'] = pd.Categorical(method_means['Method'], categories=list(METHOD_COLORS.keys()), ordered=True)
-    method_means = method_means.sort_values('Method')
-
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # S(alpha) Bar Chart
-        fig_S = px.bar(
-            method_means, x='Method', y='S(α=0.5)', 
-            color='Method', color_discrete_map=METHOD_COLORS,
-            title="Mean Performance-Interpretability Score S(α=0.5)",
-            text_auto='.3f'
-        )
-        fig_S.update_layout(showlegend=False, xaxis_title="Explanation Method", yaxis_title="Mean S(α=0.5)")
-        st.plotly_chart(fig_S, use_container_width=True)
-
-    with col2:
-        # I-Score Bar Chart
-        fig_I = px.bar(
-            method_means, x='Method', y='I', 
-            color='Method', color_discrete_map=METHOD_COLORS,
-            title="Mean Overall Interpretability (I)",
-            text_auto='.3f'
-        )
-        fig_I.update_layout(showlegend=False, xaxis_title="Explanation Method", yaxis_title="Mean I-Score")
-        st.plotly_chart(fig_I, use_container_width=True)
-
-# ------------------------------------------
-# TAB 3: PARETO TRADE-OFF
-# ------------------------------------------
-with tab3:
-    st.subheader("Accuracy vs. Interpretability Trade-off")
-    st.markdown("Methods positioned in the **top-right corner** represent the optimal Pareto front (high accuracy, high interpretability).")
-    
-    fig_pareto = px.scatter(
-        df, x='AUC', y='I', 
-        color='Method', color_discrete_map=METHOD_COLORS,
-        symbol='Model',
-        hover_data=['Sampler', 'S(α=0.5)'],
-        size_max=12,
-        title="Pareto Front: AUC vs I-Score"
-    )
-    fig_pareto.update_traces(marker=dict(size=12, line=dict(width=1, color='DarkSlateGrey')))
-    fig_pareto.update_layout(xaxis_title="AUC-ROC (Accuracy)", yaxis_title="I-Score (Interpretability)", height=600)
-    st.plotly_chart(fig_pareto, use_container_width=True)
-
-    st.markdown("---")
-    st.subheader("Group Quality (Q) vs. Interpretability (I) - Owen Variants Only")
-    
-    owen_df = df[df['Method'].isin(['Owen-Domain', 'Owen-Data', 'Owen-Model'])].copy()
-    if not owen_df.empty and 'Q' in owen_df.columns:
-        fig_q = px.scatter(
-            owen_df, x='Q', y='I', 
-            color='Method', color_discrete_map=METHOD_COLORS,
-            hover_data=['Model', 'Sampler'],
-            title="Q-Score vs I-Score (Evaluating Contextual Grouping)"
-        )
-        fig_q.update_traces(marker=dict(size=14, line=dict(width=1, color='DarkSlateGrey')))
-        st.plotly_chart(fig_q, use_container_width=True)
+    if main_df is None:
+        st.error(f"Missing primary results file: `{cfg['main']}`")
     else:
-        st.info("No valid Q scores found for Owen variants in this dataset.")
+        # Layout
+        tab_perf, tab_stat, tab_raw = st.tabs(["🎯 Trade-off Analysis", "🔬 Statistical Significance", "🗄️ Raw Data"])
+        
+        with tab_perf:
+            col1, col2 = st.columns([1.2, 1])
+            with col1:
+                st.subheader("Accuracy-Interpretability Pareto Front")
+                fig_p = px.scatter(main_df, x='AUC', y='I', color='Method', symbol='Model',
+                                 hover_data=['Sampler', 'S(α=0.5)'], color_discrete_map=METHOD_COLORS)
+                fig_p.update_traces(marker=dict(size=12, line=dict(width=1, color='white')))
+                st.plotly_chart(fig_p, use_container_width=True)
+            
+            with col2:
+                st.subheader("Leaderboard: Top 5 Configurations")
+                top5 = main_df.sort_values('S(α=0.5)', ascending=False).head(5)
+                st.table(top5[['Model', 'Sampler', 'Method', 'S(α=0.5)']].style.format({'S(α=0.5)': '{:.4f}'}))
+                
+                # Metric display
+                best = top5.iloc[0]
+                st.metric("Highest Achieved S(α=0.5)", f"{best['S(α=0.5)']:.4f}", f"via {best['Method']}")
 
-# ------------------------------------------
-# TAB 4: HEATMAPS
-# ------------------------------------------
-with tab4:
-    st.subheader("Aggregated Performance Heatmaps")
-    st.markdown("Analyze how different Models and Sampling techniques interact.")
-    
-    metric_choice = st.selectbox("Select Metric to Visualize:", ["AUC", "I", "S(α=0.5)", "Stability"])
-    
-    # Pivot data
-    pivot_df = df.pivot_table(values=metric_choice, index='Model', columns='Sampler', aggfunc='mean')
-    
-    # Dynamic colorscale based on metric
-    cmap = "Blues" if metric_choice == "AUC" else "Reds" if metric_choice == "I" else "Purples"
-    
-    fig_heat = px.imshow(
-        pivot_df, 
-        text_auto=".3f", 
-        aspect="auto",
-        color_continuous_scale=cmap,
-        title=f"Mean {metric_choice} by Model × Sampler"
-    )
-    fig_heat.update_layout(xaxis_title="Resampling Strategy", yaxis_title="Classifier Model")
-    st.plotly_chart(fig_heat, use_container_width=True)
+            st.divider()
+            st.subheader("Mean Score (S) by Explainer")
+            m_means = main_df.groupby('Method')['S(α=0.5)'].mean().sort_values(ascending=False).reset_index()
+            fig_b = px.bar(m_means, x='Method', y='S(α=0.5)', color='Method', color_discrete_map=METHOD_COLORS, text_auto='.3f')
+            st.plotly_chart(fig_b, use_container_width=True)
 
-# ------------------------------------------
-# TAB 5: RAW DATA
-# ------------------------------------------
-with tab5:
-    st.subheader("Raw Dataset")
-    st.markdown("Explore, filter, or download the raw metrics for your thesis reporting.")
-    st.dataframe(df, use_container_width=True)
-    
-    # Download button
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="Download Data as CSV",
-        data=csv,
-        file_name=f"exported_{uploaded_file.name}",
-        mime="text/csv",
-    )
+        with tab_stat:
+            s_col1, s_col2 = st.columns([1, 1])
+            
+            with s_col1:
+                st.markdown("#### Wilcoxon & Cliff's Delta Effect Size")
+                if wilcoxon_df is not None:
+                    st.dataframe(style_df(wilcoxon_df), use_container_width=True, height=400)
+                    st.caption("Green highlight indicates a 'Large' mitigation effect size.")
+                else: st.warning("Wilcoxon results not found.")
+                
+                st.markdown("#### Correlation: AUC vs Interpretability")
+                if corr_df is not None:
+                    c1, c2 = st.columns(2)
+                    c1.metric("Spearman ρ", f"{corr_df['Spearman_rho'].iloc[0]:.3f}", help="Close to 0 means Accuracy and Interpretability are independent.")
+                    c2.metric("Kendall τ", f"{corr_df['Kendall_tau'].iloc[0]:.3f}")
+                else: st.warning("Correlation results not found.")
+
+            with s_col2:
+                st.markdown("#### Nemenyi Post-hoc Significance (p-values)")
+                if nemenyi_df is not None:
+                    fig_n = px.imshow(nemenyi_df, text_auto=".3f", color_continuous_scale='RdYlGn_r', zmin=0, zmax=0.1)
+                    fig_n.update_layout(height=450, margin=dict(t=20))
+                    st.plotly_chart(fig_n, use_container_width=True)
+                    st.markdown("<small>🟥 Cells with <b>p < 0.05</b> indicate statistically significant differences.</small>", unsafe_allow_html=True)
+                else: st.warning("Nemenyi results not found.")
+
+        with tab_raw:
+            st.dataframe(main_df, use_container_width=True)
+            st.download_button("Download CSV", main_df.to_csv(index=False), f"{selection}_raw.csv", "text/csv")
