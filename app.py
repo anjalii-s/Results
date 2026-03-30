@@ -206,7 +206,10 @@ if selection == "📊 Cross-Dataset Synthesis":
         summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
         summary_df = summary_df.sort_values('Imbalance', ascending=False)
         
-        # Professional Bar Chart highlighting S scores
+        # Calculate overall method sorting order (highest to lowest score)
+        method_order = summary_df.groupby('Method')['S(α=0.5)'].mean().sort_values(ascending=False).index.tolist()
+        
+        # Professional Bar Chart highlighting S scores ordered high to low
         fig_bar = px.bar(
             summary_df, 
             x='Dataset', 
@@ -214,7 +217,10 @@ if selection == "📊 Cross-Dataset Synthesis":
             color='Method', 
             barmode='group',
             color_discrete_map=METHOD_COLORS,
-            category_orders={"Dataset": summary_df['Dataset'].unique().tolist()}
+            category_orders={
+                "Dataset": summary_df['Dataset'].unique().tolist(),
+                "Method": method_order
+            }
         )
         
         # Keeping styling consistent
