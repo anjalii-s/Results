@@ -153,7 +153,7 @@ if selection == "📊 Cross-Dataset Synthesis":
     st.markdown("""
     <div class='insight-box'>
     <b>Executive Summary:</b> This dashboard unifies the results of seven attribution methods across five financial datasets. 
-    By pressing the <b>Play</b> button below, you can visually track how standard Explainable AI (XAI) methods degrade as the dataset becomes increasingly imbalanced (from 30% down to 1% default rate), highlighting the robustness of the <b>R-Myerson</b> algorithm.
+    By pressing the <b>Play</b> button below, you can visually track how standard Explainable AI (XAI) methods degrade as the dataset becomes increasingly imbalanced.
     </div>
     """, unsafe_allow_html=True)
     
@@ -195,17 +195,17 @@ if selection == "📊 Cross-Dataset Synthesis":
             xaxis_title="Predictive Accuracy (AUC)",
             yaxis_title="Interpretability (I-Score)"
         )
-        # Speed up animation slightly
         fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1200
         st.plotly_chart(fig_anim, use_container_width=True)
-        
-st.markdown("---")
+
+        # --- THIS SECTION MUST BE INDENTED TO BE INSIDE 'if global_results:' ---
+        st.markdown("---")
         st.subheader("Global Explainer Stability (Mean S-Score)")
         
         # 1. Aggregate mean values for the bar chart
         summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
         
-        # 2. Ensure sorting by Imbalance so the X-axis flows logically (30% -> 1%)
+        # 2. Ensure sorting by Imbalance
         summary_df = summary_df.sort_values('Imbalance', ascending=False)
         
         # 3. Create Grouped Bar Chart
@@ -214,26 +214,24 @@ st.markdown("---")
             x='Dataset', 
             y='S(α=0.5)', 
             color='Method',
-            barmode='group', # This creates the side-by-side bar effect
+            barmode='group',
             color_discrete_map=METHOD_COLORS,
             category_orders={"Dataset": summary_df['Dataset'].unique().tolist()},
             labels={'S(α=0.5)': 'Mean Stability (S)', 'Dataset': 'Dataset (Decreasing Default Rate →)'}
         )
         
-        # 4. Professional Styling
         fig_bar.update_layout(
             template="plotly_white",
             height=500,
             hovermode="x unified",
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis_range=[0, 1.05] # Fix range to make comparisons consistent
+            yaxis_range=[0, 1.05]
         )
 
-        # 5. Add a visual highlight for the proposed method
         fig_bar.update_traces(marker_line_width=1, marker_line_color="white")
-        
         st.plotly_chart(fig_bar, use_container_width=True)
-
+    else:
+        st.error("No data found. Please check if the CSV files exist in the directory.")
 # ==========================================
 # VIEW 2: SPECIFIC DATASET DASHBOARD
 # ==========================================
