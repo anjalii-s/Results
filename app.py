@@ -202,24 +202,25 @@ if selection == "📊 Cross-Dataset Synthesis":
         st.markdown("---")
         st.subheader("Global Explainer Stability (Mean S-Score)")
         
-        # Aggregate mean values for the line chart
+        # Aggregate mean values for the bar chart
         summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
         summary_df = summary_df.sort_values('Imbalance', ascending=False)
         
-        # Professional Line Chart highlighting trend decay
-        fig_line = px.line(summary_df, x='Dataset', y='S(α=0.5)', color='Method', 
-                           color_discrete_map=METHOD_COLORS, markers=True,
-                           line_shape='spline')
+        # Professional Bar Chart highlighting S scores
+        fig_bar = px.bar(
+            summary_df, 
+            x='Dataset', 
+            y='S(α=0.5)', 
+            color='Method', 
+            barmode='group',
+            color_discrete_map=METHOD_COLORS,
+            category_orders={"Dataset": summary_df['Dataset'].unique().tolist()}
+        )
         
-        # Make R-Myerson thicker to stand out
-        for trace in fig_line.data:
-            if trace.name == 'R-Myerson':
-                trace.line.width = 4
-            else:
-                trace.line.width = 2
-                trace.opacity = 0.6
-                
-        fig_line.update_layout(
+        # Keeping styling consistent
+        fig_bar.update_traces(marker_line_width=1, marker_line_color="white")
+        
+        fig_bar.update_layout(
             xaxis_title="Datasets (Decreasing Default Rate →)", 
             yaxis_title="Mean S(α=0.5) Score",
             template="plotly_white",
@@ -227,7 +228,7 @@ if selection == "📊 Cross-Dataset Synthesis":
             height=450,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
-        st.plotly_chart(fig_line, use_container_width=True)
+        st.plotly_chart(fig_bar, use_container_width=True)
 
 # ==========================================
 # VIEW 2: SPECIFIC DATASET DASHBOARD
@@ -244,7 +245,7 @@ else:
     corr_df = load_data(cfg['corr'])
     
     if main_df is None:
-        st.error(f"⚠️ Primary results file (`{cfg['main']}`) not found in repository.")
+        st.error(f"⚠️ Primary results file ({cfg['main']}) not found in repository.")
         st.stop()
 
     # --- TOP 3 LEADERBOARD ---
@@ -373,7 +374,7 @@ else:
             st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("### Rigorous Pairwise Comparison")
-        st.markdown("A **True Consensus Difference** is established only if BOTH the pairwise Wilcoxon test AND the multi-comparison Nemenyi test confirm significance ($p < 0.05$).")
+        st.markdown("A *True Consensus Difference* is established only if BOTH the pairwise Wilcoxon test AND the multi-comparison Nemenyi test confirm significance ($p < 0.05$).")
         
         sc1, sc2 = st.columns([1.1, 1])
         
