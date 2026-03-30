@@ -199,35 +199,40 @@ if selection == "📊 Cross-Dataset Synthesis":
         fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1200
         st.plotly_chart(fig_anim, use_container_width=True)
         
-        st.markdown("---")
+st.markdown("---")
         st.subheader("Global Explainer Stability (Mean S-Score)")
         
-        # Aggregate mean values for the line chart
+        # 1. Aggregate mean values for the bar chart
         summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
+        
+        # 2. Ensure sorting by Imbalance so the X-axis flows logically (30% -> 1%)
         summary_df = summary_df.sort_values('Imbalance', ascending=False)
         
-        # Professional Line Chart highlighting trend decay
-        fig_line = px.line(summary_df, x='Dataset', y='S(α=0.5)', color='Method', 
-                           color_discrete_map=METHOD_COLORS, markers=True,
-                           line_shape='spline')
-        
-        # Make R-Myerson thicker to stand out
-        for trace in fig_line.data:
-            if trace.name == 'R-Myerson':
-                trace.line.width = 4
-            else:
-                trace.line.width = 2
-                trace.opacity = 0.6
-                
-        fig_line.update_layout(
-            xaxis_title="Datasets (Decreasing Default Rate →)", 
-            yaxis_title="Mean S(α=0.5) Score",
-            template="plotly_white",
-            hovermode="x unified",
-            height=450,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        # 3. Create Grouped Bar Chart
+        fig_bar = px.bar(
+            summary_df, 
+            x='Dataset', 
+            y='S(α=0.5)', 
+            color='Method',
+            barmode='group', # This creates the side-by-side bar effect
+            color_discrete_map=METHOD_COLORS,
+            category_orders={"Dataset": summary_df['Dataset'].unique().tolist()},
+            labels={'S(α=0.5)': 'Mean Stability (S)', 'Dataset': 'Dataset (Decreasing Default Rate →)'}
         )
-        st.plotly_chart(fig_line, use_container_width=True)
+        
+        # 4. Professional Styling
+        fig_bar.update_layout(
+            template="plotly_white",
+            height=500,
+            hovermode="x unified",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            yaxis_range=[0, 1.05] # Fix range to make comparisons consistent
+        )
+
+        # 5. Add a visual highlight for the proposed method
+        fig_bar.update_traces(marker_line_width=1, marker_line_color="white")
+        
+        st.plotly_chart(fig_bar, use_container_width=True)
 
 # ==========================================
 # VIEW 2: SPECIFIC DATASET DASHBOARD
