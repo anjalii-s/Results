@@ -153,7 +153,7 @@ if selection == "📊 Cross-Dataset Synthesis":
     st.markdown("""
     <div class='insight-box'>
     <b>Executive Summary:</b> This dashboard unifies the results of seven attribution methods across five financial datasets. 
-    By pressing the <b>Play</b> button below, you can visually track how standard Explainable AI (XAI) methods degrade as the dataset becomes increasingly imbalanced.
+    By pressing the <b>Play</b> button below, you can visually track how standard Explainable AI (XAI) methods degrade as the dataset becomes increasingly imbalanced (from 30% down to 1% default rate), highlighting the robustness of the <b>R-Myerson</b> algorithm.
     </div>
     """, unsafe_allow_html=True)
     
@@ -195,43 +195,43 @@ if selection == "📊 Cross-Dataset Synthesis":
             xaxis_title="Predictive Accuracy (AUC)",
             yaxis_title="Interpretability (I-Score)"
         )
+        # Speed up animation slightly
         fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1200
         st.plotly_chart(fig_anim, use_container_width=True)
-
-        # --- THIS SECTION MUST BE INDENTED TO BE INSIDE 'if global_results:' ---
+        
         st.markdown("---")
         st.subheader("Global Explainer Stability (Mean S-Score)")
         
-        # 1. Aggregate mean values for the bar chart
+        # Aggregate mean values for the bar chart
         summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
-        
-        # 2. Ensure sorting by Imbalance
         summary_df = summary_df.sort_values('Imbalance', ascending=False)
         
-        # 3. Create Grouped Bar Chart
+        # ----------------------------------------------------
+        # CHANGED TO BAR CHART HERE
+        # ----------------------------------------------------
         fig_bar = px.bar(
             summary_df, 
             x='Dataset', 
             y='S(α=0.5)', 
-            color='Method',
+            color='Method', 
             barmode='group',
             color_discrete_map=METHOD_COLORS,
-            category_orders={"Dataset": summary_df['Dataset'].unique().tolist()},
-            labels={'S(α=0.5)': 'Mean Stability (S)', 'Dataset': 'Dataset (Decreasing Default Rate →)'}
+            category_orders={"Dataset": summary_df['Dataset'].unique().tolist()}
         )
         
-        fig_bar.update_layout(
-            template="plotly_white",
-            height=500,
-            hovermode="x unified",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            yaxis_range=[0, 1.05]
-        )
-
+        # Styling to match previous aesthetic
         fig_bar.update_traces(marker_line_width=1, marker_line_color="white")
+        fig_bar.update_layout(
+            xaxis_title="Datasets (Decreasing Default Rate →)", 
+            yaxis_title="Mean S(α=0.5) Score",
+            template="plotly_white",
+            hovermode="x unified",
+            height=450,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        
         st.plotly_chart(fig_bar, use_container_width=True)
-    else:
-        st.error("No data found. Please check if the CSV files exist in the directory.")
+
 # ==========================================
 # VIEW 2: SPECIFIC DATASET DASHBOARD
 # ==========================================
@@ -247,7 +247,7 @@ else:
     corr_df = load_data(cfg['corr'])
     
     if main_df is None:
-        st.error(f"⚠️ Primary results file (`{cfg['main']}`) not found in repository.")
+        st.error(f"⚠️ Primary results file ({cfg['main']}) not found in repository.")
         st.stop()
 
     # --- TOP 3 LEADERBOARD ---
@@ -376,7 +376,7 @@ else:
             st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("### Rigorous Pairwise Comparison")
-        st.markdown("A **True Consensus Difference** is established only if BOTH the pairwise Wilcoxon test AND the multi-comparison Nemenyi test confirm significance ($p < 0.05$).")
+        st.markdown("A *True Consensus Difference* is established only if BOTH the pairwise Wilcoxon test AND the multi-comparison Nemenyi test confirm significance ($p < 0.05$).")
         
         sc1, sc2 = st.columns([1.1, 1])
         
