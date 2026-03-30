@@ -200,7 +200,7 @@ if selection == "📊 Cross-Dataset Synthesis":
         st.plotly_chart(fig_anim, use_container_width=True)
         
         st.markdown("---")
-        st.subheader("Global Explainer Stability (Mean S-Score)")
+        st.subheader("Performance-Interpretability(Mean S-Score)")
         
         # Aggregate mean values for the bar chart
         summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
