@@ -203,7 +203,7 @@ if selection == "📊 Cross-Dataset Synthesis":
         st.plotly_chart(fig_anim, use_container_width=True)
         
         st.markdown("---")
-        st.subheader("Performance-Interpretability(Mean S-Score)")
+        st.subheader("Performance-Interpretability (Mean S-Score)")
         
         # Aggregate mean values for the bar chart
         summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
@@ -238,6 +238,26 @@ if selection == "📊 Cross-Dataset Synthesis":
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
         st.plotly_chart(fig_bar, use_container_width=True)
+
+        # ==================================
+        # OVERALL TOP 5 METRICS ACROSS DATASETS
+        # ==================================
+        st.markdown("---")
+        st.subheader("🏅 Overall Top 5 Model-Samplers")
+        st.caption("Averages computed across all datasets and explanation methods globally.")
+        
+        combined['Model_Sampler'] = combined['Model'] + '_' + combined['Sampler'].fillna('None')
+        metrics_of_interest = ['AUC', 'I', 'S(α=0.5)']
+        
+        m_cols = st.columns(3)
+        for i, metric in enumerate(metrics_of_interest):
+            with m_cols[i]:
+                st.markdown(f"<h4 style='text-align: center; color: #0f172a;'>Top 5 {metric}</h4>", unsafe_allow_html=True)
+                top_5 = combined.groupby('Model_Sampler')[metric].mean().reset_index()
+                top_5 = top_5.sort_values(by=metric, ascending=False).head(5)
+                st.dataframe(top_5.style.format({metric: "{:.4f}"}), hide_index=True, use_container_width=True)
+                avg_best = top_5[metric].mean()
+                st.markdown(f"<div style='text-align: center; font-size: 0.9rem; color: #475569;'><b>Average of Top 5:</b> {avg_best:.4f}</div>", unsafe_allow_html=True)
 
 # ==========================================
 # VIEW 2: SPECIFIC DATASET DASHBOARD
@@ -284,10 +304,11 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- TABS NAVIGATION ---
-    t1, t2, t3, t4 = st.tabs([
+    t1, t2, t3, t4, t5 = st.tabs([
         "🎯 Accuracy vs Interpretability", 
         "🧩 Q vs I Analysis", 
         "🔬 Statistical Significance", 
+        "🏅 Top Model-Samplers",
         "🗄️ Raw Data"
     ])
     
@@ -444,9 +465,32 @@ else:
                 st.warning("Nemenyi data not found.")
 
     # ==================================
-    # TAB 4: RAW DATA
+    # TAB 4: TOP MODEL-SAMPLERS
     # ==================================
     with t4:
+        st.markdown("### Top 5 Configurations (Averaged Across Methods)")
+        st.caption("This identifies the most robust foundational predictive pipelines for this dataset before calculating attributions.")
+        
+        main_df['Model_Sampler'] = main_df['Model'] + '_' + main_df['Sampler'].fillna('None')
+        metrics_of_interest = ['AUC', 'I', 'S(α=0.5)']
+        
+        m_cols = st.columns(3)
+        for i, metric in enumerate(metrics_of_interest):
+            with m_cols[i]:
+                st.markdown(f"<h4 style='text-align: center; color: #0f172a;'>Top 5 {metric}</h4>", unsafe_allow_html=True)
+                top_5 = main_df.groupby('Model_Sampler')[metric].mean().reset_index()
+                top_5 = top_5.sort_values(by=metric, ascending=False).head(5)
+                
+                st.dataframe(top_5.style.format({metric: "{:.4f}"}), hide_index=True, use_container_width=True)
+                
+                avg_best = top_5[metric].mean()
+                st.markdown(f"<div style='text-align: center; font-size: 0.9rem; color: #475569;'><b>Average of Top 5:</b> {avg_best:.4f}</div>", unsafe_allow_html=True)
+
+
+    # ==================================
+    # TAB 5: RAW DATA
+    # ==================================
+    with t5:
         st.markdown("### Raw Analytical Data")
         st.dataframe(main_df, use_container_width=True)
         csv_data = main_df.to_csv(index=False).encode('utf-8')
