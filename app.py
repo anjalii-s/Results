@@ -72,7 +72,7 @@ DATASET_REGISTRY = {
         "label": "Moderate Default Rate",
         "imb": 22.12
     },
-    "Lending Club (10%)": {
+    "LC10%": {
         "main": "LC10pcdefault.csv",
         "wilcoxon": "lc10_wilcoxon_cliffs_results (1).csv",
         "nemenyi": "lc10_nemenyi_results (1).csv",
@@ -80,7 +80,7 @@ DATASET_REGISTRY = {
         "label": "Industry Standard",
         "imb": 10.0
     },
-    "Lending Club LC66": {
+    "LC (B)": {
         "main": "LC66_results_7methods_noleak (2) (1).csv",
         "wilcoxon": "lc66WILCOXONCLIFFS.csv",
         "nemenyi": "Lc66_nemenyi_results (1).csv",
@@ -201,6 +201,7 @@ if selection == "📊 Cross-Dataset Synthesis":
         
         st.markdown("---")
         st.subheader("Performance-Interpretability(Mean S-Score)")
+        st.caption("Bar heights represent the **average** S-score for a given method across all base models and samplers for that dataset.")
         
         # Aggregate mean values for the bar chart
         summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
@@ -241,7 +242,7 @@ if selection == "📊 Cross-Dataset Synthesis":
 # ==========================================
 elif selection == "🏆 Leaderboards":
     st.title("🏆 Global & Per-Dataset Leaderboards")
-    st.markdown("Dynamic rankings of top model-sampler configurations using the latest uploaded experimental results.")
+    st.markdown("Dynamic rankings of top model-sampler configurations.")
     
     global_results = []
     for name, cfg in DATASET_REGISTRY.items():
@@ -258,7 +259,7 @@ elif selection == "🏆 Leaderboards":
         metrics_of_interest = ['AUC', 'I', 'S(α=0.5)']
         
         st.markdown("### 🌍 Top Configurations Aggregated Across All Datasets")
-        st.caption("Calculated dynamically by averaging performance across all 5 datasets and 7 explainability methods.")
+        st.caption("Calculated dynamically by **averaging** performance across all 5 datasets and all 7 explainability methods. Ranked in descending order.")
         
         overall_df = pd.DataFrame({"Rank": range(1, 6)})
         for metric in metrics_of_interest:
@@ -271,7 +272,7 @@ elif selection == "🏆 Leaderboards":
         
         st.markdown("---")
         st.markdown("### 📊 Top Configurations Per Dataset")
-        st.caption("Top 3 Model-Sampler configurations calculated individually per dataset.")
+        st.caption("Calculated by **averaging** the performance of Model-Sampler configurations across all 7 explainability methods for each specific dataset. Ranked in descending order.")
         
         # Render a clean table for each individual dataset dynamically
         for ds_name in DATASET_REGISTRY.keys():
@@ -306,8 +307,9 @@ else:
         st.error(f"⚠️ Primary results file ({cfg['main']}) not found in repository.")
         st.stop()
 
-    # --- TOP 3 LEADERBOARD ---
-    st.markdown("### 🏆 Top 3 Configurations")
+    # --- TOP 3 LEADERBOARD (ABSOLUTE) ---
+    st.markdown("### 🏆 Top 3 Configurations (Absolute Peak Scores)")
+    st.caption("Ranked in descending order by the single highest **absolute peak** S(α=0.5) score achieved by any specific row (Model + Sampler + Method).")
     top3 = main_df.sort_values('S(α=0.5)', ascending=False).head(3).reset_index(drop=True)
     
     cols = st.columns(3)
@@ -333,10 +335,11 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- TABS NAVIGATION ---
-    t1, t2, t3, t4 = st.tabs([
+    t1, t2, t3, t4, t5 = st.tabs([
         "🎯 Accuracy vs Interpretability", 
         "🧩 Q vs I Analysis", 
         "🔬 Statistical Significance", 
+        "🏅 Top Model-Samplers",
         "🗄️ Raw Data"
     ])
     
@@ -493,9 +496,31 @@ else:
                 st.warning("Nemenyi data not found.")
 
     # ==================================
-    # TAB 4: RAW DATA
+    # TAB 4: TOP MODEL-SAMPLERS
     # ==================================
     with t4:
+        st.markdown("### Top 5 Configurations (Averaged Across Methods)")
+        st.caption("Ranked in descending order by their **average** score across all 7 XAI methods. This identifies the most consistently robust predictive pipelines.")
+        
+        main_df['Model_Sampler'] = main_df['Model'] + '_' + main_df['Sampler'].fillna('None')
+        metrics_of_interest = ['AUC', 'I', 'S(α=0.5)']
+        
+        m_cols = st.columns(3)
+        for i, metric in enumerate(metrics_of_interest):
+            with m_cols[i]:
+                st.markdown(f"<h4 style='text-align: center; color: #0f172a;'>Top 5 {metric}</h4>", unsafe_allow_html=True)
+                top_5 = main_df.groupby('Model_Sampler')[metric].mean().reset_index()
+                top_5 = top_5.sort_values(by=metric, ascending=False).head(5)
+                
+                st.dataframe(top_5.style.format({metric: "{:.4f}"}), hide_index=True, use_container_width=True)
+                
+                avg_best = top_5[metric].mean()
+                st.markdown(f"<div style='text-align: center; font-size: 0.9rem; color: #475569;'><b>Average of Top 5:</b> {avg_best:.4f}</div>", unsafe_allow_html=True)
+
+    # ==================================
+    # TAB 5: RAW DATA
+    # ==================================
+    with t5:
         st.markdown("### Raw Analytical Data")
         st.dataframe(main_df, use_container_width=True)
         csv_data = main_df.to_csv(index=False).encode('utf-8')
