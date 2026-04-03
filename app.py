@@ -72,7 +72,7 @@ DATASET_REGISTRY = {
         "label": "Moderate Default Rate",
         "imb": 22.12
     },
-    "LC10%": {
+    "Lending Club A ": {
         "main": "LC10pcdefault.csv",
         "wilcoxon": "lc10_wilcoxon_cliffs_results (1).csv",
         "nemenyi": "lc10_nemenyi_results (1).csv",
@@ -80,7 +80,7 @@ DATASET_REGISTRY = {
         "label": "Industry Standard",
         "imb": 10.0
     },
-    "LC (B)": {
+    "Lending Club B ": {
         "main": "LC66_results_7methods_noleak (2) (1).csv",
         "wilcoxon": "lc66WILCOXONCLIFFS.csv",
         "nemenyi": "Lc66_nemenyi_results (1).csv",
