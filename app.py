@@ -142,7 +142,7 @@ def get_wilcoxon_sig(sig_val, p_val):
 # SIDEBAR NAVIGATION
 # ==========================================
 st.sidebar.markdown("### 🧭 Navigation")
-views = ["📊 Cross-Dataset Synthesis"] + list(DATASET_REGISTRY.keys())
+views = ["📊 Cross-Dataset Synthesis", "🏆 Leaderboards"] + list(DATASET_REGISTRY.keys())
 selection = st.sidebar.radio("Select View:", views)
 st.sidebar.markdown("---")
 st.sidebar.caption("Ensemble Learning & Coalition-aware Explainability for Imbalanced Credit Default.")
@@ -239,7 +239,7 @@ if selection == "📊 Cross-Dataset Synthesis":
             st.plotly_chart(fig_bar, use_container_width=True)
 
         with tab_lead:
-            st.markdown("### 🌍 Table 4.3: Top Configurations Aggregated Across All Datasets")
+            st.markdown("### 🌍 Top Configurations Aggregated Across All Datasets")
             st.caption("Calculated dynamically by averaging performance across all 5 datasets and 7 explainability methods.")
             
             overall_df = pd.DataFrame({"Rank": range(1, 6)})
@@ -254,7 +254,7 @@ if selection == "📊 Cross-Dataset Synthesis":
             st.dataframe(overall_df, hide_index=True, use_container_width=True)
             
             st.markdown("---")
-            st.markdown("### 📊 Tables 4.1 & 4.2: Top Configurations Per Dataset")
+            st.markdown("### 📊 Top Configurations Per Dataset")
             st.caption("Top 3 Model-Sampler configurations calculated individually per dataset.")
             
             # Render a table for each individual dataset dynamically
@@ -272,7 +272,59 @@ if selection == "📊 Cross-Dataset Synthesis":
                 st.dataframe(ds_df, hide_index=True, use_container_width=True)
 
 # ==========================================
-# VIEW 2: SPECIFIC DATASET DASHBOARD
+# VIEW 2: LEADERBOARDS
+# ==========================================
+elif selection == "🏆 Leaderboards":
+    st.title("🏆 Global & Per-Dataset Leaderboards")
+    st.markdown("Dynamic rankings of top model-sampler configurations using the latest uploaded experimental results.")
+    
+    global_results = []
+    for name, cfg in DATASET_REGISTRY.items():
+        df = load_data(cfg['main'])
+        if df is not None:
+            df_copy = df.copy()
+            df_copy['Dataset_Name'] = name
+            df_copy['Imbalance'] = cfg['imb']
+            df_copy['Config'] = df_copy['Model'] + '–' + df_copy['Sampler'].fillna('None')
+            global_results.append(df_copy)
+            
+    if global_results:
+        combined = pd.concat(global_results)
+        metrics_of_interest = ['AUC', 'I', 'S(α=0.5)']
+        
+        st.markdown("### 🌍 Top Configurations Aggregated Across All Datasets")
+        st.caption("Calculated dynamically by averaging performance across all 5 datasets and 7 explainability methods.")
+        
+        overall_df = pd.DataFrame({"Rank": range(1, 6)})
+        for metric in metrics_of_interest:
+            top_5 = combined.groupby('Config')[metric].mean().reset_index()
+            top_5 = top_5.sort_values(by=metric, ascending=False).head(5).reset_index(drop=True)
+            overall_df[f"Config ({metric})"] = top_5['Config']
+            overall_df[f"{metric} Score"] = top_5[metric].apply(lambda x: f"{x:.3f}")
+            
+        st.dataframe(overall_df, hide_index=True, use_container_width=True)
+        
+        st.markdown("---")
+        st.markdown("### 📊 Top Configurations Per Dataset")
+        st.caption("Top 3 Model-Sampler configurations calculated individually per dataset.")
+        
+        # Render a clean table for each individual dataset dynamically
+        for ds_name in DATASET_REGISTRY.keys():
+            ds_matches = combined[combined['Dataset_Name'] == ds_name]
+            if not ds_matches.empty:
+                st.markdown(f"#### {ds_name} *(Imbalance: {DATASET_REGISTRY[ds_name]['imb']}%)*")
+                ds_df = pd.DataFrame({"Rank": range(1, 4)})
+                
+                for metric in metrics_of_interest:
+                    top_3 = ds_matches.groupby('Config')[metric].mean().reset_index()
+                    top_3 = top_3.sort_values(by=metric, ascending=False).head(3).reset_index(drop=True)
+                    ds_df[f"Config ({metric})"] = top_3['Config']
+                    ds_df[f"{metric} Score"] = top_3[metric].apply(lambda x: f"{x:.3f}")
+                    
+                st.dataframe(ds_df, hide_index=True, use_container_width=True)
+
+# ==========================================
+# VIEW 3: SPECIFIC DATASET DASHBOARD
 # ==========================================
 else:
     cfg = DATASET_REGISTRY[selection]
