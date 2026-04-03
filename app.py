@@ -55,9 +55,6 @@ METHOD_COLORS = {
     'R-Myerson': '#0284c7'     # Sky Blue (Proposed)
 }
 
-# ----------------------------------------------------
-# REGISTRY UPDATED WITH THE NEW FILE NAMES
-# ----------------------------------------------------
 DATASET_REGISTRY = {
     "German Credit": {
         "main": "german_results_7methods.csv",
@@ -171,105 +168,73 @@ if selection == "📊 Cross-Dataset Synthesis":
             global_results.append(df_copy)
             
     if global_results:
+        # Combine and sort so the animation flows from highest to lowest imbalance
         combined = pd.concat(global_results).sort_values('Imbalance', ascending=False)
-        combined['Model_Sampler'] = combined['Model'] + '–' + combined['Sampler'].fillna('None')
         
-        # Split Cross-Dataset Synthesis into a Visualization tab and a Leaderboards tab
-        tab_vis, tab_lead = st.tabs(["📈 Visual Synthesis", "🏆 Global Leaderboards"])
+        st.subheader("Dynamic Pareto Front Shift Across Imbalance Levels")
         
-        with tab_vis:
-            st.subheader("Dynamic Pareto Front Shift Across Imbalance Levels")
-            
-            # Animated Bubble Chart
-            fig_anim = px.scatter(
-                combined, 
-                x="AUC", y="I", 
-                animation_frame="Dataset", 
-                animation_group="Config",
-                color="Method", 
-                symbol="Model",
-                size="S(α=0.5)",
-                hover_name="Sampler",
-                color_discrete_map=METHOD_COLORS,
-                range_x=[combined['AUC'].min() - 0.02, combined['AUC'].max() + 0.02],
-                range_y=[0.0, 1.05]
-            )
-            
-            fig_anim.update_traces(marker=dict(line=dict(width=1, color='white')), opacity=0.85)
-            fig_anim.update_layout(
-                template="plotly_white", 
-                height=600,
-                xaxis_title="Predictive Accuracy (AUC)",
-                yaxis_title="Interpretability (I-Score)"
-            )
-            fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1200
-            st.plotly_chart(fig_anim, use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("Performance-Interpretability (Mean S-Score)")
-            
-            # Aggregate mean values for the bar chart
-            summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
-            summary_df = summary_df.sort_values('Imbalance', ascending=False)
-            
-            # Calculate overall method sorting order
-            method_order = summary_df.groupby('Method')['S(α=0.5)'].mean().sort_values(ascending=False).index.tolist()
-            
-            fig_bar = px.bar(
-                summary_df, 
-                x='Dataset', 
-                y='S(α=0.5)', 
-                color='Method', 
-                barmode='group',
-                color_discrete_map=METHOD_COLORS,
-                category_orders={
-                    "Dataset": summary_df['Dataset'].unique().tolist(),
-                    "Method": method_order
-                }
-            )
-            fig_bar.update_traces(marker_line_width=1, marker_line_color="white")
-            fig_bar.update_layout(
-                xaxis_title="Datasets (Decreasing Default Rate →)", 
-                yaxis_title="Mean S(α=0.5) Score",
-                template="plotly_white",
-                hovermode="x unified",
-                height=450,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            st.plotly_chart(fig_bar, use_container_width=True)
-
-        with tab_lead:
-            st.markdown("### 🌍 Top Configurations Aggregated Across All Datasets")
-            st.caption("Calculated dynamically by averaging performance across all 5 datasets and 7 explainability methods.")
-            
-            overall_df = pd.DataFrame({"Rank": range(1, 6)})
-            metrics_of_interest = ['AUC', 'I', 'S(α=0.5)']
-            
-            for metric in metrics_of_interest:
-                top_5 = combined.groupby('Model_Sampler')[metric].mean().reset_index()
-                top_5 = top_5.sort_values(by=metric, ascending=False).head(5).reset_index(drop=True)
-                overall_df[f"Config ({metric})"] = top_5['Model_Sampler']
-                overall_df[f"{metric} Score"] = top_5[metric].apply(lambda x: f"{x:.3f}")
-                
-            st.dataframe(overall_df, hide_index=True, use_container_width=True)
-            
-            st.markdown("---")
-            st.markdown("### 📊 Top Configurations Per Dataset")
-            st.caption("Top 3 Model-Sampler configurations calculated individually per dataset.")
-            
-            # Render a table for each individual dataset dynamically
-            for ds in combined['Dataset'].unique():
-                st.markdown(f"**{ds}**")
-                df_ds = combined[combined['Dataset'] == ds]
-                ds_df = pd.DataFrame({"Rank": range(1, 4)})
-                
-                for metric in metrics_of_interest:
-                    top_3 = df_ds.groupby('Model_Sampler')[metric].mean().reset_index()
-                    top_3 = top_3.sort_values(by=metric, ascending=False).head(3).reset_index(drop=True)
-                    ds_df[f"Config ({metric})"] = top_3['Model_Sampler']
-                    ds_df[f"{metric} Score"] = top_3[metric].apply(lambda x: f"{x:.3f}")
-                    
-                st.dataframe(ds_df, hide_index=True, use_container_width=True)
+        # Animated Bubble Chart
+        fig_anim = px.scatter(
+            combined, 
+            x="AUC", y="I", 
+            animation_frame="Dataset", 
+            animation_group="Config",
+            color="Method", 
+            symbol="Model",
+            size="S(α=0.5)",
+            hover_name="Sampler",
+            color_discrete_map=METHOD_COLORS,
+            range_x=[combined['AUC'].min() - 0.02, combined['AUC'].max() + 0.02],
+            range_y=[0.0, 1.05]
+        )
+        
+        fig_anim.update_traces(marker=dict(line=dict(width=1, color='white')), opacity=0.85)
+        fig_anim.update_layout(
+            template="plotly_white", 
+            height=600,
+            xaxis_title="Predictive Accuracy (AUC)",
+            yaxis_title="Interpretability (I-Score)"
+        )
+        # Speed up animation slightly
+        fig_anim.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 1200
+        st.plotly_chart(fig_anim, use_container_width=True)
+        
+        st.markdown("---")
+        st.subheader("Performance-Interpretability(Mean S-Score)")
+        
+        # Aggregate mean values for the bar chart
+        summary_df = combined.groupby(['Dataset', 'Method', 'Imbalance'])['S(α=0.5)'].mean().reset_index()
+        summary_df = summary_df.sort_values('Imbalance', ascending=False)
+        
+        # Calculate overall method sorting order (highest to lowest score)
+        method_order = summary_df.groupby('Method')['S(α=0.5)'].mean().sort_values(ascending=False).index.tolist()
+        
+        # Professional Bar Chart highlighting S scores ordered high to low
+        fig_bar = px.bar(
+            summary_df, 
+            x='Dataset', 
+            y='S(α=0.5)', 
+            color='Method', 
+            barmode='group',
+            color_discrete_map=METHOD_COLORS,
+            category_orders={
+                "Dataset": summary_df['Dataset'].unique().tolist(),
+                "Method": method_order
+            }
+        )
+        
+        # Keeping styling consistent
+        fig_bar.update_traces(marker_line_width=1, marker_line_color="white")
+        
+        fig_bar.update_layout(
+            xaxis_title="Datasets (Decreasing Default Rate →)", 
+            yaxis_title="Mean S(α=0.5) Score",
+            template="plotly_white",
+            hovermode="x unified",
+            height=450,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_bar, use_container_width=True)
 
 # ==========================================
 # VIEW 2: LEADERBOARDS
@@ -368,11 +333,10 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- TABS NAVIGATION ---
-    t1, t2, t3, t4, t5 = st.tabs([
+    t1, t2, t3, t4 = st.tabs([
         "🎯 Accuracy vs Interpretability", 
         "🧩 Q vs I Analysis", 
         "🔬 Statistical Significance", 
-        "🏅 Top Model-Samplers",
         "🗄️ Raw Data"
     ])
     
@@ -529,31 +493,9 @@ else:
                 st.warning("Nemenyi data not found.")
 
     # ==================================
-    # TAB 4: TOP MODEL-SAMPLERS
+    # TAB 4: RAW DATA
     # ==================================
     with t4:
-        st.markdown("### Top 5 Configurations (Averaged Across Methods)")
-        st.caption("This identifies the most robust foundational predictive pipelines for this dataset before calculating attributions.")
-        
-        main_df['Model_Sampler'] = main_df['Model'] + '_' + main_df['Sampler'].fillna('None')
-        metrics_of_interest = ['AUC', 'I', 'S(α=0.5)']
-        
-        m_cols = st.columns(3)
-        for i, metric in enumerate(metrics_of_interest):
-            with m_cols[i]:
-                st.markdown(f"<h4 style='text-align: center; color: #0f172a;'>Top 5 {metric}</h4>", unsafe_allow_html=True)
-                top_5 = main_df.groupby('Model_Sampler')[metric].mean().reset_index()
-                top_5 = top_5.sort_values(by=metric, ascending=False).head(5)
-                
-                st.dataframe(top_5.style.format({metric: "{:.4f}"}), hide_index=True, use_container_width=True)
-                
-                avg_best = top_5[metric].mean()
-                st.markdown(f"<div style='text-align: center; font-size: 0.9rem; color: #475569;'><b>Average of Top 5:</b> {avg_best:.4f}</div>", unsafe_allow_html=True)
-
-    # ==================================
-    # TAB 5: RAW DATA
-    # ==================================
-    with t5:
         st.markdown("### Raw Analytical Data")
         st.dataframe(main_df, use_container_width=True)
         csv_data = main_df.to_csv(index=False).encode('utf-8')
