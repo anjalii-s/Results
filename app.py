@@ -55,6 +55,9 @@ METHOD_COLORS = {
     'R-Myerson': '#0284c7'     # Sky Blue (Proposed)
 }
 
+# ----------------------------------------------------
+# REGISTRY UPDATED WITH THE NEW FILE NAMES
+# ----------------------------------------------------
 DATASET_REGISTRY = {
     "German Credit": {
         "main": "german_results_7methods.csv",
@@ -65,25 +68,25 @@ DATASET_REGISTRY = {
         "imb": 30.0
     },
     "Taiwan Credit": {
-        "main": "taiwan_results_7methods_S.csv",
-        "wilcoxon": "taiwan_wilcoxon_cliffs_results.csv",
-        "nemenyi": "taiwan_nemenyi_results.csv",
-        "corr": "taiwan_auc_I_correlation.csv",
+        "main": "taiwan_results_7methods_Salpha (1).csv",
+        "wilcoxon": "taiwan_wilcoxon_cliffs_results (2).csv",
+        "nemenyi": "NEMENYI TAIWAN NEW.csv",
+        "corr": "taiwan_auc_I_correlation (2).csv",
         "label": "Moderate Default Rate",
         "imb": 22.12
     },
     "Lending Club (10%)": {
-        "main": "LC10pcdefaultresults.csv",
-        "wilcoxon": "lc10_wilcoxon_cliffs_results.csv",
-        "nemenyi": "lc10_nemenyi_results.csv",
-        "corr": "lc10_auc_I_correlation.csv",
+        "main": "LC10pcdefault.csv",
+        "wilcoxon": "lc10_wilcoxon_cliffs_results (1).csv",
+        "nemenyi": "lc10_nemenyi_results (1).csv",
+        "corr": "lc10_auc_I_correlation (1).csv",
         "label": "Industry Standard",
         "imb": 10.0
     },
     "Lending Club LC66": {
-        "main": "LC66_results_7methods_noleak.csv",
-        "wilcoxon": "Lc66_wilcoxon_cliffs_results .csv", 
-        "nemenyi": "Lc66_nemenyi_results.csv",
+        "main": "LC66_results_7methods_noleak (2) (1).csv",
+        "wilcoxon": "lc66WILCOXONCLIFFS.csv",
+        "nemenyi": "Lc66_nemenyi_results (1).csv",
         "corr": "Lc66_correlation.csv",
         "label": "Severe Imbalance",
         "imb": 4.01
@@ -104,7 +107,7 @@ DATASET_REGISTRY = {
 @st.cache_data
 def load_data(path, is_index=False):
     """Robust file loader handling missing files and cleaning 'nan' Samplers."""
-    variations = [path, path.replace(' .csv', '.csv'), path.replace('.csv', ' (1).csv')]
+    variations = [path, path.replace(' .csv', '.csv'), path.replace('.csv', ' (1).csv'), path.replace('.csv', ' (2).csv')]
     for v in variations:
         if os.path.exists(v):
             try:
