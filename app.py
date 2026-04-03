@@ -550,7 +550,6 @@ else:
                 avg_best = top_5[metric].mean()
                 st.markdown(f"<div style='text-align: center; font-size: 0.9rem; color: #475569;'><b>Average of Top 5:</b> {avg_best:.4f}</div>", unsafe_allow_html=True)
 
-
     # ==================================
     # TAB 5: RAW DATA
     # ==================================
